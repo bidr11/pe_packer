@@ -1,0 +1,3 @@
+C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/stub.dir
+C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/ZERO_CHECK.dir
