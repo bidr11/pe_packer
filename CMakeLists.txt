@@ -15,8 +15,18 @@ file(GLOB_RECURSE HEADER_FILES FOLLOW_SYMLINKS ${PROJECT_SOURCE_DIR}/src/*.hpp)
 source_group(TREE "${PROJECT_SOURCE_DIR}" PREFIX "Header Files" FILES ${HEADER_FILES})
 source_group(TREE "${PROJECT_SOURCE_DIR}" PREFIX "Source Files" FILES ${SRC_FILES})
 
+
+add_subdirectory(${PROJECT_SOURCE_DIR}/zlib-1.3)
+
 # this will create our stub executable
 add_executable(stub ${HEADER_FILES} ${SRC_FILES})
 
 # this will link the parent zlib project to our stub
 target_link_libraries(stub zlibstatic)
+
+target_include_directories(stub PUBLIC
+  "${PROJECT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>"
+  "${PROJECT_SOURCE_DIR}/zlib-1.3"
+  "${CMAKE_CURRENT_BINARY_DIR}/zlib-1.3"
+)

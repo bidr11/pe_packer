@@ -170,9 +170,25 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>
+    <ProjectReference Include="C:\Users\bidr\Desktop\PE\packer_bidr\build\zlib-1.3\example.vcxproj">
+      <Project>{D3CE977D-58BC-39B2-A317-A7C99461A0B2}</Project>
+      <Name>example</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\bidr\Desktop\PE\packer_bidr\build\zlib-1.3\minigzip.vcxproj">
+      <Project>{930CC59C-C8D3-35FF-9E3D-C9B23A5ADC47}</Project>
+      <Name>minigzip</Name>
+    </ProjectReference>
     <ProjectReference Include="C:\Users\bidr\Desktop\PE\packer_bidr\build\stub.vcxproj">
       <Project>{CDD5624F-F9D5-352D-9E15-0A00A523D5E3}</Project>
       <Name>stub</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\bidr\Desktop\PE\packer_bidr\build\zlib-1.3\zlib.vcxproj">
+      <Project>{D3DC0308-0BF3-3813-81B9-D892E044309C}</Project>
+      <Name>zlib</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\bidr\Desktop\PE\packer_bidr\build\zlib-1.3\zlibstatic.vcxproj">
+      <Project>{73165DF7-826C-3A32-BFFF-39F086008E75}</Project>
+      <Name>zlibstatic</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
