@@ -1,6 +1,7 @@
 import argparse
 import lief
 import os
+import zlib
 
 
 def align(x, al):
@@ -17,7 +18,9 @@ def pad_data(data, al):
 
 
 def pack_data(data):
-    return data
+    size = len(data)
+    return zlib.compress(data, 2)  # 2 is the compression level, 0 is no compression
+    # return data
 
 
 if __name__ == "__main__":
