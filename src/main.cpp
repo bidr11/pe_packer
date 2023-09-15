@@ -1,87 +1,32 @@
+#include <iostream>
 #include <windows.h>
 #include <zlib.h>
 
-BYTE* load_pe(BYTE* imageBase, IMAGE_SECTION_HEADER* packed_section);
+IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers);
+BYTE* load_pe(BYTE* image_base, IMAGE_SECTION_HEADER* packed_section);
 BYTE* unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size);
 void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
-void relocate(BYTE* unpacked_data, BYTE* unpacked_base, IMAGE_NT_HEADERS* unpacked_nt);
+void relocate(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
+
 
 int main(int argc, char *argv[])
 {
-    BYTE *packed_data = NULL;
-    HMODULE curr = GetModuleHandle(NULL);
-    IMAGE_DOS_HEADER *curr_dos = (IMAGE_DOS_HEADER *)curr;
-    IMAGE_NT_HEADERS *curr_nt = (IMAGE_NT_HEADERS *)((BYTE *)curr + curr_dos->e_lfanew);
-    IMAGE_OPTIONAL_HEADER *curr_opt = &curr_nt->OptionalHeader;
-    IMAGE_SECTION_HEADER *curr_sect = (IMAGE_SECTION_HEADER *)((BYTE *)curr_opt + sizeof(IMAGE_OPTIONAL_HEADER));
-    int number_of_sections = curr_nt->FileHeader.NumberOfSections;
+    HMODULE image_base = GetModuleHandle(NULL);
 
+    IMAGE_NT_HEADERS *nt_headers = (IMAGE_NT_HEADERS *)((BYTE *)image_base + ((IMAGE_DOS_HEADER *)image_base)->e_lfanew);
+    
+    IMAGE_SECTION_HEADER *packed_sect = load_packed_section(".packed", nt_headers);
 
-    for (int i = 0; i < number_of_sections; i++)
-    {
-        if (strcmp((char *)curr_sect->Name, ".packed") == 0)
-        {
-            
-            break;
-        }
-        curr_sect++;
-    }
+    BYTE *packed_data = (BYTE *)image_base + packed_sect->PointerToRawData + 4;
+    DWORD unpacked_size = *(DWORD*)packed_data;
+    DWORD packed_size = packed_sect->Misc.VirtualSize - 4;
 
-    if (packed_data == NULL)
-    {
-        MessageBox(NULL, "No packed data found", "Error", MB_OK);
-        return 1;
-    }
+    BYTE* unpacked_data = unpack(packed_data, packed_size, unpacked_size);
 
-    BYTE *unpacked_data = load_pe((BYTE*)curr, curr_sect);
-    ((void (*)())unpacked_data)();
+    BYTE *loaded_pe = load_pe(unpacked_data);
+    ((void (*)())loaded_pe)();
 
     return 0;
-}
-
-
-
-BYTE* load_pe(BYTE* imageBase, IMAGE_SECTION_HEADER* packed_section)
-{
-
-    BYTE *packed_data = (BYTE *)imageBase + packed_section->PointerToRawData;
-
-    // Decompress packed data
-    DWORD unpacked_size = *(DWORD*)packed_data;
-    DWORD packed_size = packed_section->Misc.VirtualSize - 4;
-    BYTE* unpacked_data = unpack(packed_data + 4, packed_size, unpacked_size);
-    
-    // Extract basic informatoin
-    IMAGE_DOS_HEADER* unpacked_dos = (IMAGE_DOS_HEADER*)unpacked_data;
-    IMAGE_NT_HEADERS* unpacked_nt = (IMAGE_NT_HEADERS*)(unpacked_data + unpacked_dos->e_lfanew);
-    IMAGE_OPTIONAL_HEADER* unpacked_opt = &unpacked_nt->OptionalHeader;
-    IMAGE_SECTION_HEADER* unpacked_sect = (IMAGE_SECTION_HEADER*)((BYTE*)unpacked_opt + sizeof(IMAGE_OPTIONAL_HEADER));
-
-
-    // Handle Imports
-    load_imports(unpacked_data, unpacked_nt);
-
-    // Hanlde Relocations
-    relocate(unpacked_data, imageBase, unpacked_nt);
-
-    // Get number of sections of unpacked PE
-    // int number_of_sections = unpacked_nt->FileHeader.NumberOfSections;
-
-    // for (int i=0; i<number_of_sections; i++)
-    // {
-    //     // Get name of current section
-    //     char* section_name = (char*)unpacked_sect->Name;
-    //     // Check if current section is .text
-    //     if (strcmp(section_name, ".text") == 0)
-    //     {
-    //         // Get pointer to raw data of .text section
-    //         BYTE* unpacked_text = (BYTE*)unpacked_data + unpacked_sect->PointerToRawData;
-    //         return unpacked_text;
-    //     }
-    //     unpacked_sect++;
-    // }
-
-    // return unpacked_data;
 }
 
 
@@ -96,6 +41,42 @@ BYTE* unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size)
     
     return unpacked_data;
 }
+
+BYTE* load_pe(BYTE *unpacked_data)
+{
+    
+    // Extract basic information
+    IMAGE_DOS_HEADER* dos_header = (IMAGE_DOS_HEADER*)unpacked_data;
+    IMAGE_NT_HEADERS* nt_header = (IMAGE_NT_HEADERS*)(unpacked_data + dos_header->e_lfanew);
+    IMAGE_OPTIONAL_HEADER* optional_header = &nt_header->OptionalHeader;
+    IMAGE_SECTION_HEADER* section_table = (IMAGE_SECTION_HEADER*)((BYTE*)optional_header + sizeof(IMAGE_OPTIONAL_HEADER));
+    int number_of_sections = nt_header->FileHeader.NumberOfSections;
+    
+    DWORD image_size = optional_header->AddressOfEntryPoint;
+    BYTE* image_base = (BYTE*)VirtualAlloc(NULL, image_size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+
+    std::memcpy(image_base, unpacked_data, optional_header->SizeOfHeaders);
+
+    for (int i=0; i<number_of_sections; ++i)
+      if (section_table[i].SizeOfRawData > 0)
+         std::memcpy(image_base+section_table[i].VirtualAddress,
+                     unpacked_data+section_table[i].PointerToRawData,
+                     section_table[i].SizeOfRawData);
+
+
+    // Handle Imports
+    load_imports(image_base, nt_header);
+
+    // Handle Relocations
+    // relocate(image_base, nt_header);
+
+
+    
+
+    return image_base + optional_header->AddressOfEntryPoint;
+}
+
+
 
 void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt)
 {
@@ -131,11 +112,28 @@ void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt)
     return;
 }
 
-void relocate(BYTE* unpacked_data, BYTE* unpacked_base, IMAGE_NT_HEADERS* unpacked_nt) {
-    if (unpacked_nt->OptionalHeader.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE == 0)
-   {
-      MessageBox(NULL, "Relocations not supported", "Error", MB_OK);
-      ExitProcess(7);
-   }
-   
+IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers) {
+    IMAGE_OPTIONAL_HEADER *curr_opt = &nt_headers->OptionalHeader;
+    IMAGE_SECTION_HEADER *curr_sect = (IMAGE_SECTION_HEADER *)((BYTE *)curr_opt + sizeof(IMAGE_OPTIONAL_HEADER));
+    int number_of_sections = nt_headers->FileHeader.NumberOfSections;
+
+
+    IMAGE_SECTION_HEADER *packed_sect = NULL;
+    for (int i = 0; i < number_of_sections; i++)
+    {
+        if (strcmp((char *)curr_sect->Name, section_name) == 0)
+        {
+            packed_sect = curr_sect;
+            break;
+        }
+        curr_sect++;
+    }
+
+    if (packed_sect == NULL)
+    {
+        MessageBox(NULL, "No packed data found", "Error", MB_OK);
+        exit(1);
+    }
+
+    return packed_sect;
 }

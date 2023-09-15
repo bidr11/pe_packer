@@ -1,1 +1,3 @@
 build/
+packer_executable/.idea
+packer_executable/venv
