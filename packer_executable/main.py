@@ -2,7 +2,7 @@ import argparse
 import lief
 import os
 import zlib
-
+import struct
 
 def align(x, al):
     """ return <x> aligned to <al> """
@@ -19,7 +19,9 @@ def pad_data(data, al):
 
 def pack_data(data):
     size = len(data)
-    return zlib.compress(data, 2)  # 2 is the compression level, 0 is no compression
+    size_in_bytes = struct.pack("<I", size)
+    print(size, hex(size))
+    return size_in_bytes + zlib.compress(data, 2)  # 2 is the compression level, 0 is no compression
     # return data
 
 
@@ -27,7 +29,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Pack PE binary')
     parser.add_argument('input', metavar="FILE", help='input file')
-    parser.add_argument('-p', metavar="UNPACKER", help='unpacker .exe', required=True)
+    parser.add_argument('-p', metavar="UNPACKER", help='unpacker executable', default="stub.exe")
     parser.add_argument('-o', metavar="FILE", help='output', default="packed.exe")
 
     args = parser.parse_args()
@@ -47,7 +49,8 @@ if __name__ == "__main__":
         input_PE_data = f.read()
 
     # create the section in lief
-    packed_data = pack_data(list(input_PE_data))  # pack the input file data
+    # packed_data = pack_data(list(input_PE_data))  # pack the input file data
+    packed_data = list(pack_data(input_PE_data))  # pack the input file data
 
     packed_data = pad_data(packed_data,
                            file_alignment)  # pad with 0 to align with file alignment (removes a lief warning)
