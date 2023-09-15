@@ -4,7 +4,7 @@
 #include <vector>
 
 IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers);
-BYTE* load_pe(BYTE* image_base, IMAGE_SECTION_HEADER* packed_section);
+BYTE* load_pe(BYTE *unpacked_data);
 BYTE* unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size);
 void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
 void relocate(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
@@ -162,12 +162,12 @@ void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt)
         {
             if (thunk->u1.Ordinal & IMAGE_ORDINAL_FLAG)
             {
-                func->u1.Function = (DWORD)GetProcAddress(lib, (char*)(thunk->u1.Ordinal & 0xFFFF));
+                func->u1.Function = (ULONGLONG)GetProcAddress(lib, (char*)(thunk->u1.Ordinal & 0xFFFF));
             }
             else
             {
                 IMAGE_IMPORT_BY_NAME* thunk_data = (IMAGE_IMPORT_BY_NAME*)(unpacked_data + thunk->u1.AddressOfData);
-                func->u1.Function = (DWORD)GetProcAddress(lib, (char*)thunk_data->Name);
+                func->u1.Function = (ULONGLONG)GetProcAddress(lib, (char*)thunk_data->Name);
             }
             thunk++;
             func++;
