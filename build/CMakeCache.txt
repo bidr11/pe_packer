@@ -200,6 +200,21 @@ INSTALL_MAN_DIR:PATH=C:/Program Files/stub/share/man
 //Installation directory for pkgconfig (.pc) files
 INSTALL_PKGCONFIG_DIR:PATH=C:/Program Files/stub/share/pkgconfig
 
+//Path to a library.
+LIB_EAY_DEBUG:FILEPATH=C:/Program Files/OpenSSL-Win64/lib/VC/libcrypto64MDd.lib
+
+//Path to a library.
+LIB_EAY_RELEASE:FILEPATH=C:/Program Files/OpenSSL-Win64/lib/VC/libcrypto64MD.lib
+
+//Path to a file.
+OPENSSL_INCLUDE_DIR:PATH=C:/Program Files/OpenSSL-Win64/include
+
+//Path to a library.
+SSL_EAY_DEBUG:FILEPATH=C:/Program Files/OpenSSL-Win64/lib/VC/libssl64MDd.lib
+
+//Path to a library.
+SSL_EAY_RELEASE:FILEPATH=C:/Program Files/OpenSSL-Win64/lib/VC/libssl64MD.lib
+
 //Value Computed by CMake
 stub_BINARY_DIR:STATIC=C:/Users/bidr/Desktop/PE/packer_bidr/build
 
@@ -343,6 +358,8 @@ CMAKE_STATIC_LINKER_FLAGS_RELEASE-ADVANCED:INTERNAL=1
 CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_VERBOSE_MAKEFILE
 CMAKE_VERBOSE_MAKEFILE-ADVANCED:INTERNAL=1
+//Details about finding OpenSSL
+FIND_PACKAGE_MESSAGE_DETAILS_OpenSSL:INTERNAL=[optimized;C:/Program Files/OpenSSL-Win64/lib/VC/libcrypto64MD.lib;debug;C:/Program Files/OpenSSL-Win64/lib/VC/libcrypto64MDd.lib][C:/Program Files/OpenSSL-Win64/include][c ][v3.1.2()]
 //Have function fseeko
 HAVE_FSEEKO:INTERNAL=
 //Result of TRY_COMPILE
@@ -355,6 +372,8 @@ HAVE_STDINT_H:INTERNAL=1
 HAVE_SYS_TYPES_H:INTERNAL=1
 //CHECK_TYPE_SIZE: off64_t unknown
 OFF64_T:INTERNAL=
+//ADVANCED property for variable: OPENSSL_INCLUDE_DIR
+OPENSSL_INCLUDE_DIR-ADVANCED:INTERNAL=1
 //Have include unistd.h
 Z_HAVE_UNISTD_H:INTERNAL=
 

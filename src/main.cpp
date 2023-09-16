@@ -2,10 +2,11 @@
 #include <windows.h>
 #include <zlib.h>
 #include <vector>
+#include <openssl/aes.h>
 
 IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers);
 BYTE* load_pe(BYTE *unpacked_data);
-BYTE* unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size);
+void unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size, std::vector<uint8_t>* unpacked);
 void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
 void relocate(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
 
@@ -18,68 +19,53 @@ int main(int argc, char *argv[])
     
     IMAGE_SECTION_HEADER *packed_sect = load_packed_section(".packed", nt_headers);
 
-    BYTE *packed_data = (BYTE *)image_base + packed_sect->PointerToRawData + 4;
+    BYTE *packed_data = (BYTE *)image_base + packed_sect->VirtualAddress;
     DWORD unpacked_size = *(DWORD*)packed_data;
     DWORD packed_size = packed_sect->Misc.VirtualSize - 4;
 
-    BYTE* unpacked_data = unpack(packed_data, packed_size, unpacked_size);
+    // BYTE* unpacked_data = packed_data;
+    std::vector<uint8_t> unpacked = std::vector<uint8_t>(unpacked_size);
+    unpack(packed_data, packed_size, unpacked_size, &unpacked);
 
-    BYTE *loaded_pe = load_pe(unpacked_data);
+    // BYTE *loaded_pe = load_pe((BYTE *)image_base + packed_sect->VirtualAddress);
+    BYTE *loaded_pe = load_pe(unpacked.data());
     ((void (*)())loaded_pe)();
 
     return 0;
 }
 
 
-BYTE* unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size)
+void unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size, std::vector<uint8_t>* unpacked)
 {
-    std::vector<uint8_t> unpacked = std::vector<uint8_t>(unpacked_size);
-    
-    if (uncompress(unpacked.data(), &unpacked_size, packed_data + 4, packed_size) != Z_OK) {
+    if (uncompress((*(std::vector<uint8_t>*)unpacked).data(), &unpacked_size, packed_data + 4, packed_size) != Z_OK) {
         MessageBox(NULL, "Error unpacking data", "Error", MB_OK);
         ExitProcess(2);
     }
-    
-    return unpacked.data();
+    return;
 }
 
 void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header) {
-   // first, check if we can even relocate the image. if the dynamic base flag isn't set,
-   // then this image probably isn't prepared for relocating.
-
    if (nt_header->OptionalHeader.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE == 0)
    {
       std::cerr << "Error: image cannot be relocated." << std::endl;
       ExitProcess(7);
    }
 
-   // once we know we can relocate the image, make sure a relocation directory is present
    IMAGE_DATA_DIRECTORY directory_entry = nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
 
    if (directory_entry.VirtualAddress == 0) {
       std::cerr << "Error: image can be relocated, but contains no relocation directory." << std::endl;
-      ExitProcess(8);
+      return;
    }
 
-   // calculate the difference between the image base in the compiled image
-   // and the current virtually allocated image. this will be added to our
-   // relocations later.
-   ULONGLONG delta = *image_base - nt_header->OptionalHeader.ImageBase;
+   ULONGLONG delta = (ULONGLONG)image_base - nt_header->OptionalHeader.ImageBase;
 
-   // get the relocation table.
    IMAGE_BASE_RELOCATION * relocation_table = (IMAGE_BASE_RELOCATION *)(image_base + directory_entry.VirtualAddress);
 
-   // when the virtual address for our relocation header is null,
-   // we've reached the end of the relocation table.
    while (relocation_table->VirtualAddress != 0)
    {
-      // since the SizeOfBlock value also contains the size of the relocation table header,
-      // we can calculate the size of the relocation array by subtracting the size of
-      // the header from the SizeOfBlock value and dividing it by its base type: a 16-bit integer.
       std::size_t relocations = (relocation_table->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(std::uint16_t);
 
-      // additionally, the relocation array for this table entry is directly after
-      // the relocation header
       auto relocation_data = reinterpret_cast<std::uint16_t *>(&relocation_table[1]);
 
       for (std::size_t i=0; i<relocations; ++i)
@@ -120,8 +106,13 @@ BYTE* load_pe(BYTE *unpacked_data)
     IMAGE_SECTION_HEADER* section_table = (IMAGE_SECTION_HEADER*)((BYTE*)optional_header + sizeof(IMAGE_OPTIONAL_HEADER));
     int number_of_sections = nt_header->FileHeader.NumberOfSections;
     
-    DWORD image_size = optional_header->AddressOfEntryPoint;
-    BYTE* image_base = (BYTE*)VirtualAlloc(NULL, image_size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    DWORD image_size = optional_header->SizeOfImage;
+    BYTE* image_base = (BYTE*)VirtualAlloc(0, image_size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (image_base == NULL)
+    {
+        MessageBox(NULL, "Error allocating memory", "Error", MB_OK);
+        ExitProcess(3);
+    }
 
     std::memcpy(image_base, unpacked_data, optional_header->SizeOfHeaders);
 

@@ -20,9 +20,14 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/zlib-1.3)
 
 # this will create our stub executable
 add_executable(stub ${HEADER_FILES} ${SRC_FILES})
+add_executable(test test.c)
 
 # this will link the parent zlib project to our stub
 target_link_libraries(stub zlibstatic)
+
+
+find_package(OpenSSL REQUIRED)
+target_link_libraries(stub OpenSSL::SSL)
 
 target_include_directories(stub PUBLIC
   "${PROJECT_SOURCE_DIR}/src"
