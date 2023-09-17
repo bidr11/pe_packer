@@ -4,11 +4,28 @@
     <ClCompile Include="C:\Users\bidr\Desktop\PE\packer_bidr\src\main.cpp">
       <Filter>Source Files\src</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\bidr\Desktop\PE\packer_bidr\src\utils.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\bidr\Desktop\PE\packer_bidr\src\main.hpp">
+      <Filter>Header Files\src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\bidr\Desktop\PE\packer_bidr\src\utils.hpp">
+      <Filter>Header Files\src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="C:\Users\bidr\Desktop\PE\packer_bidr\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{40981016-2CC2-333D-8C4D-850F4FF1AF3F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\src">
+      <UniqueIdentifier>{51BFA90F-7B61-31B2-A643-4132AC97DCDF}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files">
       <UniqueIdentifier>{75DA298F-0194-3599-979C-0AD80903400A}</UniqueIdentifier>
     </Filter>

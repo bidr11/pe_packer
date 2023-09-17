@@ -305,7 +305,10 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="C:\Users\bidr\Desktop\PE\packer_bidr\src\main.hpp" />
+    <ClInclude Include="C:\Users\bidr\Desktop\PE\packer_bidr\src\utils.hpp" />
     <ClCompile Include="C:\Users\bidr\Desktop\PE\packer_bidr\src\main.cpp" />
+    <ClCompile Include="C:\Users\bidr\Desktop\PE\packer_bidr\src\utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="C:\Users\bidr\Desktop\PE\packer_bidr\build\ZERO_CHECK.vcxproj">

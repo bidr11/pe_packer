@@ -1,16 +1,4 @@
-#include <iostream>
-#include <windows.h>
-#include <zlib.h>
-#include <vector>
-#include <openssl/aes.h>
-
-
-IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers);
-BYTE* load_pe(BYTE *unpacked_data);
-BYTE* unpack(BYTE* image_base, IMAGE_SECTION_HEADER* packed_sect);
-void decrypt(const unsigned char *ciphertext, size_t ciphertext_len, const unsigned char *key, char *iv, unsigned char *plaintext);
-void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
-void relocate(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
+#include "main.hpp"
 
 
 int main(int argc, char *argv[])
@@ -28,39 +16,76 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-void decrypt(const unsigned char *ciphertext, size_t ciphertext_len, const unsigned char *key, char *iv, unsigned char *plaintext) 
+ 
+BYTE* load_pe(BYTE *unpacked_data)
 {
-    AES_KEY aes_key;
-    AES_set_decrypt_key(key, 128, &aes_key);
-    char ivec[17];
-    strcpy_s(ivec, iv);
-    AES_cbc_encrypt(ciphertext, plaintext, ciphertext_len, &aes_key, (unsigned char*)ivec, AES_DECRYPT);
+    // Extract basic information
+    IMAGE_DOS_HEADER* dos_header = (IMAGE_DOS_HEADER*)unpacked_data;
+    IMAGE_NT_HEADERS* nt_header = (IMAGE_NT_HEADERS*)(unpacked_data + dos_header->e_lfanew);
+    IMAGE_OPTIONAL_HEADER* optional_header = &nt_header->OptionalHeader;
+    IMAGE_SECTION_HEADER* section_table = (IMAGE_SECTION_HEADER*)((BYTE*)optional_header + sizeof(IMAGE_OPTIONAL_HEADER));
+    int number_of_sections = nt_header->FileHeader.NumberOfSections;
+    
+    DWORD image_size = optional_header->SizeOfImage;
+    BYTE* image_base = (BYTE*)VirtualAlloc(0, image_size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (image_base == NULL)
+    {
+        MessageBox(NULL, "Error allocating memory", "Error", MB_OK);
+        ExitProcess(3);
+    }
+
+    std::memcpy(image_base, unpacked_data, optional_header->SizeOfHeaders);
+
+    for (int i=0; i<number_of_sections; ++i)
+      if (section_table[i].SizeOfRawData > 0)
+         std::memcpy(image_base+section_table[i].VirtualAddress,
+                     unpacked_data+section_table[i].PointerToRawData,
+                     section_table[i].SizeOfRawData);
+
+
+    // Handle Imports
+    load_imports(image_base, nt_header);
+
+    // Handle Relocations
+    relocate(image_base, nt_header);
+    
+    BYTE* addr = image_base + optional_header->AddressOfEntryPoint;
+    VirtualFree(unpacked_data, 0, MEM_RELEASE);
+    return addr;
 }
 
-BYTE* unpack(BYTE* image_base, IMAGE_SECTION_HEADER* packed_sect)
+void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt)
 {
-    BYTE *packed_data = (BYTE *)image_base + packed_sect->VirtualAddress;
+    IMAGE_DATA_DIRECTORY* import_dir = &unpacked_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (import_dir->VirtualAddress == 0)
+        return;
 
-    const char *key = "0123456789abcdef";
-    char *iv = "abcdef9876543210";
+    IMAGE_IMPORT_DESCRIPTOR* import_desc = (IMAGE_IMPORT_DESCRIPTOR*)(unpacked_data + import_dir->VirtualAddress);
+    while (import_desc->Name != NULL)
+    {
+        char* lib_name = (char*)(unpacked_data + import_desc->Name);
+        HMODULE lib = LoadLibrary(lib_name);
+        IMAGE_THUNK_DATA* thunk = (IMAGE_THUNK_DATA*)(unpacked_data + import_desc->OriginalFirstThunk);
+        IMAGE_THUNK_DATA* func = (IMAGE_THUNK_DATA*)(unpacked_data + import_desc->FirstThunk);
 
-    DWORD decrypted_size = *(DWORD*)packed_data;
-    unsigned char *decrypted = (unsigned char *)VirtualAlloc(NULL, decrypted_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    size_t encrypted_len = packed_sect->Misc.VirtualSize - 4;
-    decrypt(packed_data + 4, encrypted_len, (const unsigned char*)key, iv, decrypted);
-
-
-    DWORD unpacked_size = *(DWORD*)decrypted;
-    DWORD packed_size = encrypted_len - 4;
-    BYTE* unpacked = (BYTE* )VirtualAlloc(NULL, unpacked_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-
-    if (uncompress(unpacked, &unpacked_size, decrypted + 4, packed_size) != Z_OK) {
-        MessageBox(NULL, "Error unpacking data", "Error", MB_OK);
-        ExitProcess(2);
+        while (thunk->u1.AddressOfData != NULL)
+        {
+            if (thunk->u1.Ordinal & IMAGE_ORDINAL_FLAG)
+            {
+                func->u1.Function = (ULONGLONG)GetProcAddress(lib, (char*)(thunk->u1.Ordinal & 0xFFFF));
+            }
+            else
+            {
+                IMAGE_IMPORT_BY_NAME* thunk_data = (IMAGE_IMPORT_BY_NAME*)(unpacked_data + thunk->u1.AddressOfData);
+                func->u1.Function = (ULONGLONG)GetProcAddress(lib, (char*)thunk_data->Name);
+            }
+            thunk++;
+            func++;
+        }
+        import_desc++;
     }
-    VirtualFree(decrypted, 0, MEM_RELEASE);
-    return unpacked;
+
+    return;
 }
 
 void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header) 
@@ -113,103 +138,4 @@ void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header)
          (std::uint8_t *)relocation_table + relocation_table->SizeOfBlock
       );
    }
-}
- 
-BYTE* load_pe(BYTE *unpacked_data)
-{
-    // Extract basic information
-    IMAGE_DOS_HEADER* dos_header = (IMAGE_DOS_HEADER*)unpacked_data;
-    IMAGE_NT_HEADERS* nt_header = (IMAGE_NT_HEADERS*)(unpacked_data + dos_header->e_lfanew);
-    IMAGE_OPTIONAL_HEADER* optional_header = &nt_header->OptionalHeader;
-    IMAGE_SECTION_HEADER* section_table = (IMAGE_SECTION_HEADER*)((BYTE*)optional_header + sizeof(IMAGE_OPTIONAL_HEADER));
-    int number_of_sections = nt_header->FileHeader.NumberOfSections;
-    
-    DWORD image_size = optional_header->SizeOfImage;
-    BYTE* image_base = (BYTE*)VirtualAlloc(0, image_size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    if (image_base == NULL)
-    {
-        MessageBox(NULL, "Error allocating memory", "Error", MB_OK);
-        ExitProcess(3);
-    }
-
-    std::memcpy(image_base, unpacked_data, optional_header->SizeOfHeaders);
-
-    for (int i=0; i<number_of_sections; ++i)
-      if (section_table[i].SizeOfRawData > 0)
-         std::memcpy(image_base+section_table[i].VirtualAddress,
-                     unpacked_data+section_table[i].PointerToRawData,
-                     section_table[i].SizeOfRawData);
-
-
-    // Handle Imports
-    load_imports(image_base, nt_header);
-
-    // Handle Relocations
-    relocate(image_base, nt_header);
-    
-    BYTE* addr = image_base + optional_header->AddressOfEntryPoint;
-    VirtualFree(unpacked_data, 0, MEM_RELEASE);
-    return addr;
-}
-
-
-
-void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt)
-{
-    IMAGE_DATA_DIRECTORY* import_dir = &unpacked_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-    if (import_dir->VirtualAddress == 0)
-        return;
-
-    IMAGE_IMPORT_DESCRIPTOR* import_desc = (IMAGE_IMPORT_DESCRIPTOR*)(unpacked_data + import_dir->VirtualAddress);
-    while (import_desc->Name != NULL)
-    {
-        char* lib_name = (char*)(unpacked_data + import_desc->Name);
-        HMODULE lib = LoadLibrary(lib_name);
-        IMAGE_THUNK_DATA* thunk = (IMAGE_THUNK_DATA*)(unpacked_data + import_desc->OriginalFirstThunk);
-        IMAGE_THUNK_DATA* func = (IMAGE_THUNK_DATA*)(unpacked_data + import_desc->FirstThunk);
-
-        while (thunk->u1.AddressOfData != NULL)
-        {
-            if (thunk->u1.Ordinal & IMAGE_ORDINAL_FLAG)
-            {
-                func->u1.Function = (ULONGLONG)GetProcAddress(lib, (char*)(thunk->u1.Ordinal & 0xFFFF));
-            }
-            else
-            {
-                IMAGE_IMPORT_BY_NAME* thunk_data = (IMAGE_IMPORT_BY_NAME*)(unpacked_data + thunk->u1.AddressOfData);
-                func->u1.Function = (ULONGLONG)GetProcAddress(lib, (char*)thunk_data->Name);
-            }
-            thunk++;
-            func++;
-        }
-        import_desc++;
-    }
-
-    return;
-}
-
-IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers) 
-{
-    IMAGE_OPTIONAL_HEADER *curr_opt = &nt_headers->OptionalHeader;
-    IMAGE_SECTION_HEADER *curr_sect = (IMAGE_SECTION_HEADER *)((BYTE *)curr_opt + sizeof(IMAGE_OPTIONAL_HEADER));
-    int number_of_sections = nt_headers->FileHeader.NumberOfSections;
-
-
-    IMAGE_SECTION_HEADER *packed_sect = NULL;
-    for (int i = 0; i < number_of_sections; i++)
-    {
-        if (strcmp((char *)curr_sect[i].Name, section_name) == 0)
-        {
-            packed_sect = &curr_sect[i];
-            break;
-        }
-    }
-
-    if (packed_sect == NULL)
-    {
-        MessageBox(NULL, "No packed data found", "Error", MB_OK);
-        exit(1);
-    }
-
-    return packed_sect;
 }
