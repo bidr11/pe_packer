@@ -20,7 +20,7 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/zlib-1.3)
 
 # this will create our stub executable
 add_executable(stub ${HEADER_FILES} ${SRC_FILES})
-add_executable(test test.c)
+add_executable(dummy_executable test.c)
 
 # this will link the parent zlib project to our stub
 target_link_libraries(stub zlibstatic)
@@ -35,3 +35,11 @@ target_include_directories(stub PUBLIC
   "${PROJECT_SOURCE_DIR}/zlib-1.3"
   "${CMAKE_CURRENT_BINARY_DIR}/zlib-1.3"
 )
+
+enable_testing()
+add_test(NAME test_pack
+  COMMAND python "${PROJECT_SOURCE_DIR}/packer_executable/main.py" "${PROJECT_BINARY_DIR}/Debug/dummy_executable.exe" -p "${PROJECT_BINARY_DIR}/Debug/stub.exe")
+
+
+add_test(NAME test_packed
+  COMMAND "${PROJECT_BINARY_DIR}/packed.exe")

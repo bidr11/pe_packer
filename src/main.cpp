@@ -4,9 +4,11 @@
 #include <vector>
 #include <openssl/aes.h>
 
+
 IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers);
 BYTE* load_pe(BYTE *unpacked_data);
-void unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size, std::vector<uint8_t>* unpacked);
+BYTE* unpack(BYTE* image_base, IMAGE_SECTION_HEADER* packed_sect);
+void decrypt(const unsigned char *ciphertext, size_t ciphertext_len, const unsigned char *key, char *iv, unsigned char *plaintext);
 void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
 void relocate(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt);
 
@@ -19,32 +21,50 @@ int main(int argc, char *argv[])
     
     IMAGE_SECTION_HEADER *packed_sect = load_packed_section(".packed", nt_headers);
 
-    BYTE *packed_data = (BYTE *)image_base + packed_sect->VirtualAddress;
-    DWORD unpacked_size = *(DWORD*)packed_data;
-    DWORD packed_size = packed_sect->Misc.VirtualSize - 4;
+    BYTE* unpacked = unpack((BYTE*) image_base, packed_sect);
 
-    // BYTE* unpacked_data = packed_data;
-    std::vector<uint8_t> unpacked = std::vector<uint8_t>(unpacked_size);
-    unpack(packed_data, packed_size, unpacked_size, &unpacked);
-
-    // BYTE *loaded_pe = load_pe((BYTE *)image_base + packed_sect->VirtualAddress);
-    BYTE *loaded_pe = load_pe(unpacked.data());
+    BYTE *loaded_pe = load_pe(unpacked);
     ((void (*)())loaded_pe)();
 
     return 0;
 }
 
-
-void unpack(BYTE* packed_data, DWORD packed_size, DWORD unpacked_size, std::vector<uint8_t>* unpacked)
+void decrypt(const unsigned char *ciphertext, size_t ciphertext_len, const unsigned char *key, char *iv, unsigned char *plaintext) 
 {
-    if (uncompress((*(std::vector<uint8_t>*)unpacked).data(), &unpacked_size, packed_data + 4, packed_size) != Z_OK) {
+    AES_KEY aes_key;
+    AES_set_decrypt_key(key, 128, &aes_key);
+    char ivec[17];
+    strcpy_s(ivec, iv);
+    AES_cbc_encrypt(ciphertext, plaintext, ciphertext_len, &aes_key, (unsigned char*)ivec, AES_DECRYPT);
+}
+
+BYTE* unpack(BYTE* image_base, IMAGE_SECTION_HEADER* packed_sect)
+{
+    BYTE *packed_data = (BYTE *)image_base + packed_sect->VirtualAddress;
+
+    const char *key = "0123456789abcdef";
+    char *iv = "abcdef9876543210";
+
+    DWORD decrypted_size = *(DWORD*)packed_data;
+    unsigned char *decrypted = (unsigned char *)VirtualAlloc(NULL, decrypted_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    size_t encrypted_len = packed_sect->Misc.VirtualSize - 4;
+    decrypt(packed_data + 4, encrypted_len, (const unsigned char*)key, iv, decrypted);
+
+
+    DWORD unpacked_size = *(DWORD*)decrypted;
+    DWORD packed_size = encrypted_len - 4;
+    BYTE* unpacked = (BYTE* )VirtualAlloc(NULL, unpacked_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+    if (uncompress(unpacked, &unpacked_size, decrypted + 4, packed_size) != Z_OK) {
         MessageBox(NULL, "Error unpacking data", "Error", MB_OK);
         ExitProcess(2);
     }
-    return;
+    VirtualFree(decrypted, 0, MEM_RELEASE);
+    return unpacked;
 }
 
-void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header) {
+void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header) 
+{
    if (nt_header->OptionalHeader.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE == 0)
    {
       std::cerr << "Error: image cannot be relocated." << std::endl;
@@ -66,7 +86,7 @@ void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header) {
    {
       std::size_t relocations = (relocation_table->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(std::uint16_t);
 
-      auto relocation_data = reinterpret_cast<std::uint16_t *>(&relocation_table[1]);
+      uint16_t * relocation_data = (uint16_t *)&relocation_table[1];
 
       for (std::size_t i=0; i<relocations; ++i)
       {
@@ -75,10 +95,10 @@ void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header) {
          //     (https://learn.microsoft.com/en-us/windows/win32/debug/pe-format see "base relocation types")
          //   * the lower 12 bits contain the offset into the relocation entry's address base into the image
          //
-         auto relocation = relocation_data[i];
+         uint16_t relocation = relocation_data[i];
          std::uint16_t type = relocation >> 12;
          std::uint16_t offset = relocation & 0xFFF;
-         auto ptr = reinterpret_cast<std::uintptr_t *>(image_base + relocation_table->VirtualAddress + offset);
+         uintptr_t *ptr = (uintptr_t *)(image_base + relocation_table->VirtualAddress + offset);
 
          // there are typically only two types of relocations for a 64-bit binary:
          //   * IMAGE_REL_BASED_DIR64: a 64-bit delta calculation
@@ -89,16 +109,14 @@ void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header) {
       }
 
       // the next relocation entry is at SizeOfBlock bytes after the current entry
-      relocation_table = reinterpret_cast<IMAGE_BASE_RELOCATION *>(
-         reinterpret_cast<std::uint8_t *>(relocation_table) + relocation_table->SizeOfBlock
+      relocation_table = (IMAGE_BASE_RELOCATION *)(
+         (std::uint8_t *)relocation_table + relocation_table->SizeOfBlock
       );
    }
 }
  
-
 BYTE* load_pe(BYTE *unpacked_data)
 {
-    
     // Extract basic information
     IMAGE_DOS_HEADER* dos_header = (IMAGE_DOS_HEADER*)unpacked_data;
     IMAGE_NT_HEADERS* nt_header = (IMAGE_NT_HEADERS*)(unpacked_data + dos_header->e_lfanew);
@@ -129,8 +147,9 @@ BYTE* load_pe(BYTE *unpacked_data)
     // Handle Relocations
     relocate(image_base, nt_header);
     
-
-    return image_base + optional_header->AddressOfEntryPoint;
+    BYTE* addr = image_base + optional_header->AddressOfEntryPoint;
+    VirtualFree(unpacked_data, 0, MEM_RELEASE);
+    return addr;
 }
 
 
@@ -169,7 +188,8 @@ void load_imports(BYTE* unpacked_data, IMAGE_NT_HEADERS* unpacked_nt)
     return;
 }
 
-IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers) {
+IMAGE_SECTION_HEADER* load_packed_section(char* section_name, IMAGE_NT_HEADERS* nt_headers) 
+{
     IMAGE_OPTIONAL_HEADER *curr_opt = &nt_headers->OptionalHeader;
     IMAGE_SECTION_HEADER *curr_sect = (IMAGE_SECTION_HEADER *)((BYTE *)curr_opt + sizeof(IMAGE_OPTIONAL_HEADER));
     int number_of_sections = nt_headers->FileHeader.NumberOfSections;

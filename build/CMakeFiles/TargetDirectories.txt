@@ -1,6 +1,7 @@
-C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/test.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/stub.dir
+C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/dummy_executable.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/INSTALL.dir
+C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/RUN_TESTS.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/ALL_BUILD.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/CMakeFiles/ZERO_CHECK.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/zlib-1.3/CMakeFiles/zlib.dir
@@ -8,4 +9,5 @@ C:/Users/bidr/Desktop/PE/packer_bidr/build/zlib-1.3/CMakeFiles/zlibstatic.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/zlib-1.3/CMakeFiles/example.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/zlib-1.3/CMakeFiles/minigzip.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/zlib-1.3/CMakeFiles/INSTALL.dir
+C:/Users/bidr/Desktop/PE/packer_bidr/build/zlib-1.3/CMakeFiles/RUN_TESTS.dir
 C:/Users/bidr/Desktop/PE/packer_bidr/build/zlib-1.3/CMakeFiles/ALL_BUILD.dir
