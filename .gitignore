@@ -1,6 +1,6 @@
-.vscode/
-build/
-packer_executable/.idea
-packer_executable/venv
-packer_executable/*.exe
-packer_executable/*.pdb
+/.vscode
+/build
+/packer_executable/.idea
+/packer_executable/venv
+/packer_executable/*.exe
+/packer_executable/*.pdb
