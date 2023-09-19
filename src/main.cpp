@@ -34,8 +34,10 @@ BYTE* load_pe(BYTE *unpacked_data)
         ExitProcess(3);
     }
 
+    // Map headers
     std::memcpy(image_base, unpacked_data, optional_header->SizeOfHeaders);
 
+    // Map sections
     for (int i=0; i<number_of_sections; ++i)
       if (section_table[i].SizeOfRawData > 0)
          std::memcpy(image_base+section_table[i].VirtualAddress,
@@ -111,7 +113,7 @@ void relocate(BYTE* image_base, IMAGE_NT_HEADERS* nt_header)
    {
       std::size_t relocations = (relocation_table->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(std::uint16_t);
 
-      uint16_t * relocation_data = (uint16_t *)&relocation_table[1];
+      uint16_t *relocation_data = (uint16_t *)&relocation_table[1];
 
       for (std::size_t i=0; i<relocations; ++i)
       {

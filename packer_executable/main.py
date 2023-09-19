@@ -58,24 +58,18 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # open the unpack.exe binary
+    # open the stub
     unpack_PE = lief.PE.parse(args.p)
-
     file_alignment = unpack_PE.optional_header.file_alignment
-    section_alignment = unpack_PE.optional_header.section_alignment
-
-    # then create the a .packed section, with the packed PE inside :
 
     # read the whole file to be packed
     with open(args.input, "rb") as f:
         input_PE_data = f.read()
 
-    # create the section in lief
     packed_data = list(pack_data(input_PE_data))  # pack the input file data
+    packed_data = pad_data(packed_data, file_alignment)  # pad with 0 to align with file alignment
 
-    packed_data = pad_data(packed_data,
-                           file_alignment)  # pad with 0 to align with file alignment
-
+    # create the .packed section in lief, fill it with packed data, give it the right characteristics
     packed_section = lief.PE.Section(".packed")
     packed_section.content = packed_data
     packed_section.size = len(packed_data)
@@ -83,16 +77,15 @@ if __name__ == "__main__":
                                       | lief.PE.SECTION_CHARACTERISTICS.MEM_WRITE
                                       | lief.PE.SECTION_CHARACTERISTICS.CNT_INITIALIZED_DATA)
     
-    # We don't need to specify a Relative Virtual Address here, lief will just put it at the end.
+    # Add the section to the unpacker
     unpack_PE.add_section(packed_section)
 
-    # Lief will compute this for us.
+    # Lief will compute this.
     unpack_PE.optional_header.sizeof_image = 0
 
-    # save the resulting PE
+    # save the resulting PE into disk
     if os.path.exists(args.o):
         os.remove(args.o)
-
     builder = lief.PE.Builder(unpack_PE)
     builder.build()
     builder.write(args.o)

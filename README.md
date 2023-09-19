@@ -6,7 +6,7 @@ The unpacking stub loads a ".unpacked" section, decrypts and decompresses it, th
 
 The packing process is done using python.
 
-**Disclaimer:** This packer does cannot handle executables that do not have a relocations table. Not implemented. 
+**Disclaimer:** Not all cases are handled. This is a very minimal packer, might not work with every executable. 
 
 ## Building the project
 This packer requires an installation of OpenSSL for correct building and execution.
